@@ -30,12 +30,14 @@ gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, GLib, Gdk, Gio, GObject, Pango
 
 import podman_projects as pp
+import themes
 
 ALL_KEY = "__all__"
 NONE_KEY = "__none__"
 NON_WEB_PORTS = {3306, 5432, 6379, 27017, 1433, 9042, 22, 21, 11211, 5672}
 DB_KEYWORDS = ["db", "mysql", "mariadb", "postgres", "redis", "mongo", "memcache", "rabbit"]
 STATE_LABELS = {"running": "Berjalan", "paused": "Dijeda", "stopped": "Berhenti"}
+PAW_COLORS = {"running": "#33b47c", "paused": "#e5a50a", "stopped": "#8f8d96"}
 
 PODMAN_CSS = """
 .bz-ccard { padding: 12px 10px 6px 14px; }
@@ -186,9 +188,10 @@ class ContainerCard(Gtk.Box):
 
         # nama + status
         hdr = Gtk.Box(spacing=8)
-        dot = Gtk.Label(label="●", valign=Gtk.Align.CENTER)
-        dot.add_css_class("bz-dot")
-        dot.add_css_class(sc)
+        dot = Gtk.Image.new_from_paintable(themes.paw_icon(PAW_COLORS.get(sc, PAW_COLORS["stopped"]), 14))
+        dot.set_pixel_size(14)
+        dot.set_valign(Gtk.Align.CENTER)
+        dot.set_tooltip_text(STATE_LABELS.get(sc, ""))
         hdr.append(dot)
         name = Gtk.Label(label=self.name, xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END,
                          tooltip_text=self.name)
@@ -330,7 +333,7 @@ class PodmanTab(Gtk.Box):
         self.proj_list.add_css_class("navigation-sidebar")
         self.proj_list.connect("row-selected", self._on_project_selected)
         sc.set_child(self.proj_list)
-        side.append(sc)
+        side.append(themes.sidebar_decor(sc))
         self.split_view.set_sidebar(side)
 
         # ─── Konten ───
@@ -378,8 +381,9 @@ class PodmanTab(Gtk.Box):
                                    selection_mode=Gtk.SelectionMode.NONE, margin_bottom=8)
         cs.set_child(self.flowbox)
         self.cards_stack.add_named(cs, "cards")
-        self.empty_page = Adw.StatusPage(icon_name="utilities-terminal-symbolic")
+        self.empty_page = Adw.StatusPage()
         self.empty_page.add_css_class("compact")
+        themes.on_change(lambda: self._render_cards(force=True))
         self.cards_stack.add_named(self.empty_page, "empty")
         paned.set_start_child(self.cards_stack)
 
@@ -630,15 +634,16 @@ class PodmanTab(Gtk.Box):
             self.flowbox.remove(ch)
 
         if not self.podman_ok:
-            self.empty_page.set_icon_name("dialog-warning-symbolic")
+            self.empty_page.set_paintable(themes.illustration("curious", 160))
             self.empty_page.set_title("Podman tidak bisa dijalankan")
             self.empty_page.set_description("Pastikan podman terpasang dan bisa dijalankan dari terminal.")
             self.empty_page.set_child(None)
             self.cards_stack.set_visible_child_name("empty")
             return
         if not conts:
-            self.empty_page.set_icon_name("utilities-terminal-symbolic")
             p = self._project(self.selected_key)
+            searching = not p and (self.search.get_text() or self.filter_dd.get_selected())
+            self.empty_page.set_paintable(themes.illustration("curious" if searching else "sleep", 160))
             btn = None
             if p:
                 self.empty_page.set_title("Belum ada container")
@@ -650,7 +655,7 @@ class PodmanTab(Gtk.Box):
                 self.empty_page.set_title("Tidak ada yang cocok")
                 self.empty_page.set_description("Ubah kata kunci pencarian atau filter status.")
             else:
-                self.empty_page.set_title("Belum ada container")
+                self.empty_page.set_title("Kardusnya masih kosong")
                 self.empty_page.set_description("Tambah folder proyek berisi compose.yaml, "
                                                 "atau seret foldernya ke jendela ini.")
                 btn = Gtk.Button(label="Tambah folder")

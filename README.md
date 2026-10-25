@@ -47,6 +47,13 @@ terminal yang bikin pusing, ia bisa jadi tab baru di Nyanux.
 Tampilannya menyesuaikan ukuran jendela: di layar lebar ada sidebar; di jendela sempit sidebar
 jadi panel geser dan navigasi pindah ke bawah. Tema mengikuti sistem, atau bisa diatur sendiri.
 
+### Tema kucing
+Pilih jenis kucing di **Preferensi → Tema kucing**: **Oren**, **Abu**, **Hitam**, **Belang tiga**,
+atau **Bawaan sistem**. Tema mengubah warna aksen dan nuansa latar (terang maupun gelap),
+sekaligus warna bulu kucing di ilustrasi: kucing tidur di kardus saat halaman kosong, kucing
+bingung saat pencarian tidak ketemu, dan kucing kecil yang mengintip di bawah sidebar
+(bisa dimatikan lewat **Hiasan kucing**).
+
 ## Kebutuhan
 
 - Python 3.10+
@@ -101,6 +108,7 @@ IDE tetap terbaca, tapi tombol **Tambah akun** akan menampilkan petunjuk pengatu
 | `ag_kuota_tab.py` | Tampilan tab Kuota AI |
 | `ag_kuota_backend.py`, `ag_kuota_live.py` | Akun, cache, dan API kuota Google Cloud Code |
 | `tray.py` | Ikon & menu system tray (StatusNotifierItem lewat D-Bus, tanpa GTK3) |
+| `themes.py` | Tema kucing: palet warna & ilustrasi SVG yang diwarnai sesuai tema |
 | `icons/` | Ikon aplikasi (berwarna & simbolik) |
 
 ## Menambah fitur

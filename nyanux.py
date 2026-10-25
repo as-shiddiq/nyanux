@@ -27,6 +27,7 @@ from podman_tab import PodmanTab
 from ag_kuota_tab import AGKuotaTab, quota_summary, _needs_relogin
 from podman_tab import compute_ports, container_name
 from tray import TrayIcon, MenuItem
+import themes
 
 APP_NAME = "Nyanux"
 APP_ID = "io.github.asshiddiq.Nyanux"
@@ -35,12 +36,13 @@ CONFIG_DIR = Path.home() / ".config" / "nyanux"
 OLD_CONFIG_DIR = Path.home() / ".config" / "bazu"
 SETTINGS_FILE = CONFIG_DIR / "settings.json"
 
-THEMES = [("system", "Ikuti sistem", Adw.ColorScheme.DEFAULT),
+SCHEMES = [("system", "Ikuti sistem", Adw.ColorScheme.DEFAULT),
           ("light", "Terang", Adw.ColorScheme.FORCE_LIGHT),
           ("dark", "Gelap", Adw.ColorScheme.FORCE_DARK)]
 
 # Lebar (sp) di bawah ini sidebar proyek/akun dilipat, dan view switcher pindah ke bawah
 TRAY_ICON = APP_ID + "-tray"
+DEFAULT_CAT_THEME = "oren"
 
 SPLIT_BREAKPOINT = 900
 NARROW_BREAKPOINT = 600
@@ -77,7 +79,7 @@ def save_app_settings(settings):
 
 CUSTOM_CSS = """
 /* Sidebar di dalam tab (proyek / akun) */
-.bz-sidebar { background: @sidebar_bg_color; }
+.bz-sidebar { background: var(--sidebar-bg-color); }
 .bz-sidebar-title { font-weight: 700; }
 
 /* Tag kecil: IDE, cache, auto-start */
@@ -108,6 +110,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_icon_name(APP_ID)
         self.style_manager = Adw.StyleManager.get_default()
         self.settings = load_app_settings()
+        themes.apply(self.settings.get("cat_theme", DEFAULT_CAT_THEME))
+        themes.set_decor_visible(self.settings.get("cat_decor", True))
 
         self._build_ui()
         self._install_actions()
@@ -281,11 +285,16 @@ class MainWindow(Adw.ApplicationWindow):
 
     # ─── Tema & preferensi ───────────────────────────────────────────────────
     def apply_theme(self, key, save=True):
-        scheme = next((s for k, _l, s in THEMES if k == key), Adw.ColorScheme.DEFAULT)
+        scheme = next((s for k, _l, s in SCHEMES if k == key), Adw.ColorScheme.DEFAULT)
         self.style_manager.set_color_scheme(scheme)
         if save:
             self.settings["theme"] = key
             save_app_settings(self.settings)
+
+    def apply_cat_theme(self, key, save=True):
+        themes.apply(key)
+        if save:
+            self._set_setting("cat_theme", key)
 
     def _on_preferences(self, *_):
         dlg = Adw.PreferencesDialog()
@@ -293,12 +302,24 @@ class MainWindow(Adw.ApplicationWindow):
         dlg.add(page)
 
         look = Adw.PreferencesGroup(title="Tampilan")
-        theme_row = Adw.ComboRow(title="Tema", model=Gtk.StringList.new([l for _k, l, _s in THEMES]))
-        keys = [k for k, _l, _s in THEMES]
+        theme_row = Adw.ComboRow(title="Mode", model=Gtk.StringList.new([l for _k, l, _s in SCHEMES]))
+        keys = [k for k, _l, _s in SCHEMES]
         cur = self.settings.get("theme", "system")
         theme_row.set_selected(keys.index(cur) if cur in keys else 0)
         theme_row.connect("notify::selected", lambda r, _p: self.apply_theme(keys[r.get_selected()]))
         look.add(theme_row)
+
+        cat_row = Adw.ComboRow(title="Tema kucing", subtitle="Warna aksen & kucing di ilustrasi",
+                               model=Gtk.StringList.new([t[1] for t in themes.THEMES]))
+        cat_row.set_selected(themes.THEME_KEYS.index(themes.current()))
+        cat_row.connect("notify::selected", lambda r, _p: self.apply_cat_theme(themes.THEME_KEYS[r.get_selected()]))
+        look.add(cat_row)
+
+        decor = Adw.SwitchRow(title="Hiasan kucing", subtitle="Kucing kecil mengintip di bawah sidebar",
+                              active=self.settings.get("cat_decor", True))
+        decor.connect("notify::active", lambda r, _p: (themes.set_decor_visible(r.get_active()),
+                                                       self._set_setting("cat_decor", r.get_active())))
+        look.add(decor)
         page.add(look)
 
         quota = Adw.PreferencesGroup(title="Kuota AI",

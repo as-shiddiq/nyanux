@@ -13,6 +13,7 @@ from gi.repository import Gtk, Adw, GLib, Gio, Pango
 # Import backend original AG Kuota
 import ag_kuota_backend as backend
 import ag_kuota_live as live
+import themes
 
 _MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
 
@@ -175,7 +176,7 @@ class AGKuotaTab(Gtk.Box):
         self.list_box.add_css_class("navigation-sidebar")
         self.list_box.connect("row-selected", self._on_account_selected)
         scroll.set_child(self.list_box)
-        side.append(scroll)
+        side.append(themes.sidebar_decor(scroll))
         self.split_view.set_sidebar(side)
 
         # ─── Konten: detail akun ───
@@ -196,7 +197,7 @@ class AGKuotaTab(Gtk.Box):
         scroll_detail.set_child(clamp)
         self.detail_stack.add_named(scroll_detail, "detail")
 
-        self.empty_page = Adw.StatusPage(icon_name="avatar-default-symbolic",
+        self.empty_page = Adw.StatusPage(paintable=themes.illustration("sleep", 160),
                                          title="Belum ada akun",
                                          description="Tambahkan akun Google untuk memantau sisa kuota Antigravity.")
         empty_btn = Gtk.Button(label="Tambah akun", halign=Gtk.Align.CENTER)
@@ -205,6 +206,7 @@ class AGKuotaTab(Gtk.Box):
         empty_btn.connect("clicked", self._on_add_account_clicked)
         self.empty_page.set_child(empty_btn)
         self.detail_stack.add_named(self.empty_page, "empty")
+        themes.on_change(lambda: self.empty_page.set_paintable(themes.illustration("sleep", 160)))
 
         self.loading_page = Adw.StatusPage(title="Memuat akun…")
         self.loading_page.set_child(Adw.Spinner(halign=Gtk.Align.CENTER))
