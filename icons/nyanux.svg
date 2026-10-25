@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="box" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e3aa62"/>
+      <stop offset="1" stop-color="#c88540"/>
+    </linearGradient>
+    <linearGradient id="flap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f0c27f"/>
+      <stop offset="1" stop-color="#d6994f"/>
+    </linearGradient>
+    <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8b8a92"/>
+      <stop offset="1" stop-color="#5e5c64"/>
+    </linearGradient>
+    <radialGradient id="shadow">
+      <stop offset="0" stop-color="#000" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- bayangan di lantai: kardus melayang -->
+  <ellipse cx="64" cy="118" rx="34" ry="6" fill="url(#shadow)"/>
+  <path d="M46 108h8M74 108h8M60 112h8" stroke="#99c1f1" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+
+  <!-- bintang kecil -->
+  <g fill="#f9f06b">
+    <path d="M18 22l2.2 5.8 5.8 2.2-5.8 2.2L18 38l-2.2-5.8L10 30l5.8-2.2z"/>
+    <path d="M108 14l1.6 4.4 4.4 1.6-4.4 1.6-1.6 4.4-1.6-4.4-4.4-1.6 4.4-1.6z"/>
+    <path d="M112 50l1.2 3.3 3.3 1.2-3.3 1.2-1.2 3.3-1.2-3.3-3.3-1.2 3.3-1.2z"/>
+  </g>
+
+  <!-- tutup kardus belakang & bagian dalam -->
+  <path d="M30 60 38 50h52l8 10z" fill="#a8692e"/>
+  <rect x="26" y="56" width="76" height="12" rx="3" fill="#6f4520"/>
+
+  <!-- kucing -->
+  <g transform="translate(0 -10)">
+    <path d="M40 52 45 22 61 38z" fill="url(#fur)"/>
+    <path d="M88 52 83 22 67 38z" fill="url(#fur)"/>
+    <path d="M45.5 29 48 45 57 39z" fill="#f8a5b0"/>
+    <path d="M82.5 29 80 45 71 39z" fill="#f8a5b0"/>
+    <ellipse cx="64" cy="58" rx="27" ry="23" fill="url(#fur)"/>
+    <ellipse cx="64" cy="66" rx="13" ry="9" fill="#c0bfbc"/>
+    <!-- mata -->
+    <ellipse cx="52" cy="56" rx="4.6" ry="5.6" fill="#241f31"/>
+    <ellipse cx="76" cy="56" rx="4.6" ry="5.6" fill="#241f31"/>
+    <circle cx="53.6" cy="54" r="1.6" fill="#fff"/>
+    <circle cx="77.6" cy="54" r="1.6" fill="#fff"/>
+    <!-- hidung & mulut -->
+    <path d="M60.5 62.5h7L64 66z" fill="#e66b7c"/>
+    <path d="M64 66v2.5M64 68.5q-2.8 3-6 1M64 68.5q2.8 3 6 1" fill="none" stroke="#241f31" stroke-width="1.6" stroke-linecap="round"/>
+    <!-- kumis -->
+    <path d="M30 60l14 2.5M30 67l14-1.5M98 60l-14 2.5M98 67l-14-1.5" stroke="#deddda" stroke-width="1.6" stroke-linecap="round"/>
+  </g>
+
+  <!-- kardus depan -->
+  <rect x="24" y="66" width="80" height="40" rx="7" fill="#8f5a2a"/>
+  <rect x="24" y="64" width="80" height="38" rx="7" fill="url(#box)"/>
+  <rect x="58" y="64" width="12" height="38" fill="#f3d39d" opacity="0.55"/>
+  <rect x="31" y="64" width="66" height="2.5" rx="1.2" fill="#fff" opacity="0.3"/>
+  <!-- garis rusuk ala container -->
+  <path d="M36 74v20M46 74v20M82 74v20M92 74v20" stroke="#a8692e" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
+
+  <!-- tutup kardus samping, terbuka -->
+  <path d="M24 66 34 64 22 46 10 54z" fill="url(#flap)"/>
+  <path d="M104 66 94 64 106 46 118 54z" fill="url(#flap)"/>
+
+  <!-- kaki depan di bibir kardus -->
+  <g fill="#9a9996">
+    <ellipse cx="50" cy="66" rx="7.5" ry="5"/>
+    <ellipse cx="78" cy="66" rx="7.5" ry="5"/>
+  </g>
+  <path d="M47.5 64.5v3M52.5 64.5v3M75.5 64.5v3M80.5 64.5v3" stroke="#6f6e74" stroke-width="1.3" stroke-linecap="round"/>
+</svg>

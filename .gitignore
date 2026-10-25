@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+*.tmp
+.venv/
+venv/
+
+# Data pribadi — jangan pernah di-commit
+accounts.json
+*.vscdb
