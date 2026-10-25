@@ -112,4 +112,4 @@ Pekerjaan berat (memanggil perintah, jaringan) jalankan di thread, lalu perbarui
 
 ## Lisensi
 
-Belum ditentukan.
+[MIT](LICENSE): bebas dipakai, diubah, dan dibagikan, asal pemberitahuan hak cipta tetap disertakan.

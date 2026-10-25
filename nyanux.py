@@ -228,6 +228,10 @@ class MainWindow(Adw.ApplicationWindow):
             version=APP_VERSION,
             developer_name="as-shiddiq",
             comments="Biar nggak pusing ngurus Linux tanpa GUI. Sekarang: container Podman dan kuota AI Antigravity.",
+            website="https://github.com/as-shiddiq/nyanux",
+            issue_url="https://github.com/as-shiddiq/nyanux/issues",
+            license_type=Gtk.License.MIT_X11,
+            copyright="© 2026 as-shiddiq",
         )
         about.present(self)
 
