@@ -13,6 +13,33 @@ file konfigurasi. Semuanya bisa, tapi harus ingat perintahnya dan bolak-balik an
 itu jadi tombol dan daftar yang jelas. Fiturnya sengaja tidak dibatasi: setiap kali ada urusan
 terminal yang bikin pusing, ia bisa jadi tab baru di Nyanux.
 
+## Tampilan
+
+![Tab Podman dengan tema Oren](docs/screenshots/podman-oren-terang.png)
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/kuota-hitam-gelap.png" alt="Tab Kuota AI, tema Hitam mode gelap"></td>
+    <td><img src="docs/screenshots/ringkasan-belang-terang.png" alt="Halaman Ringkasan, tema Belang tiga"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Kuota AI · tema Hitam, mode gelap</sub></td>
+    <td align="center"><sub>Ringkasan · tema Belang tiga</sub></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/screenshots/sempit-abu-gelap.png" width="260" alt="Tampilan jendela sempit, tema Abu">
+  <br><sub>Jendela sempit · tema Abu</sub>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/tema-kucing.png" width="560" alt="Empat tema kucing: Oren, Abu, Hitam, Belang tiga">
+  <br><sub>Tema kucing: Oren · Abu · Hitam · Belang tiga</sub>
+</p>
+
+<sub>Screenshot memakai data contoh.</sub>
+
 ## Fitur saat ini
 
 ### Podman
