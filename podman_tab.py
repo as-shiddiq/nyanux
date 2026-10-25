@@ -22,6 +22,7 @@ import shutil
 import subprocess
 import threading
 import webbrowser
+from pathlib import Path
 
 import gi
 
@@ -563,7 +564,7 @@ class PodmanTab(Gtk.Box):
                 box.append(b2)
                 self.head_actions.append(box)
             add = icon_label_button("folder-new-symbolic", "Tambah folder",
-                                    "Tambah folder proyek berisi compose.yaml", icon_only=True)
+                                    "Tambah folder proyek (compose.yaml, Node.js, dll)", icon_only=True)
             add.add_css_class("flat")
             add.connect("clicked", self._on_add_folder_clicked)
             self.head_actions.append(add)
@@ -659,7 +660,7 @@ class PodmanTab(Gtk.Box):
                 self.empty_page.set_description("Ubah kata kunci pencarian atau filter status.")
             else:
                 self.empty_page.set_title("Kardusnya masih kosong")
-                self.empty_page.set_description("Tambah folder proyek berisi compose.yaml, "
+                self.empty_page.set_description("Tambah folder proyek (compose.yaml, Node.js, dll), "
                                                 "atau seret foldernya ke jendela ini.")
                 btn = Gtk.Button(label="Tambah folder")
                 btn.connect("clicked", self._on_add_folder_clicked)
@@ -801,7 +802,7 @@ class PodmanTab(Gtk.Box):
     def _on_add_folder_clicked(self, *_):
         parent = self.get_root()
         if hasattr(Gtk, "FileDialog"):
-            dlg = Gtk.FileDialog(title="Pilih folder proyek (atau folder induk untuk dipindai)")
+            dlg = Gtk.FileDialog(title="Pilih folder proyek (compose.yaml, Node.js, dll)")
 
             def _cb(d, res):
                 try:
@@ -812,7 +813,7 @@ class PodmanTab(Gtk.Box):
                     self.add_folders([f.get_path()])
             dlg.select_folder(parent, None, _cb)
         else:
-            dlg = Gtk.FileChooserNative(title="Pilih folder proyek", transient_for=parent,
+            dlg = Gtk.FileChooserNative(title="Pilih folder proyek (compose.yaml, Node.js, dll)", transient_for=parent,
                                         action=Gtk.FileChooserAction.SELECT_FOLDER)
 
             def _resp(d, r):
@@ -839,29 +840,163 @@ class PodmanTab(Gtk.Box):
         def _worker():
             projects = list(self.projects)
             added = dup = 0
+            detectable = []
             for f in folders:
-                projects, a, d = pp.add_folder(projects, f)
+                root = Path(f).expanduser().resolve()
+                # 1. Jika folder itu sendiri punya compose file
+                if pp.find_compose_file(root):
+                    projects, a, d = pp.add_folder(projects, str(root))
+                    added += a
+                    dup += d
+                    continue
+
+                # 2. Jika folder itu sendiri terdeteksi sebagai project (Node.js/Python)
+                root_info = pp.detect_project_info(root)
+                if root_info:
+                    if any(os.path.realpath(p["path"]) == os.path.realpath(str(root)) for p in projects):
+                        dup += 1
+                    else:
+                        detectable.append((root, root_info))
+                    continue
+
+                # 3. Jika folder induk (bukan project langsung), pindai sub-foldernya:
+                projects, a, d = pp.add_folder(projects, str(root))
                 added += a
                 dup += d
-            GLib.idle_add(_done, projects, added, dup)
+                if a == 0 and d == 0:
+                    det = pp.scan_for_detectable_projects(root)
+                    for cand_folder, cand_info in det:
+                        if not any(os.path.realpath(p["path"]) == os.path.realpath(str(cand_folder)) for p in projects):
+                            detectable.append((cand_folder, cand_info))
+            GLib.idle_add(_done, projects, added, dup, detectable)
 
-        def _done(projects, added, dup):
+        def _done(projects, added, dup, detectable):
             self.projects = projects
             pp.save_projects(self.projects)
             if added:
                 self._toast(f"{added} proyek ditambahkan" + (f" ({dup} sudah ada)" if dup else ""))
-                # pilih proyek terakhir yang ditambahkan
                 self.selected_key = self.projects[-1]["path"]
             elif dup:
                 self._toast("Folder sudah ada di daftar")
+            elif detectable:
+                self._prompt_detectable_projects(detectable)
+                return False
             else:
-                self._toast("Tidak ada compose.yaml / docker-compose.yml di folder itu")
+                self._toast("Tidak ada compose.yaml atau project yang didukung di folder itu")
+
             self._render_projects(force=True)
             self._render_header()
             self._render_cards(force=True)
             return False
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _prompt_detectable_projects(self, queue):
+        if not queue:
+            return
+        folder, info = queue[0]
+        rest = queue[1:]
+        self.show_auto_detect_dialog(folder, info, on_done=lambda: self._prompt_detectable_projects(rest) if rest else None)
+
+    def show_auto_detect_dialog(self, folder, info, on_done=None):
+        folder = Path(folder)
+        name = info.get("name") or folder.name
+        heading = f"Proyek {info.get('display_type', 'Baru')} Terdeteksi"
+        body = (f"Folder “{folder.name}” belum memiliki file compose.\n"
+                f"Nyanux menentukan konfigurasi container berikut secara otomatis:")
+
+        if hasattr(Adw, "AlertDialog"):
+            dlg = Adw.AlertDialog(heading=heading, body=body)
+        else:
+            dlg = Adw.MessageDialog(transient_for=self.get_root(), heading=heading, body=body)
+
+        lb = Gtk.ListBox()
+        lb.add_css_class("boxed-list")
+        lb.set_selection_mode(Gtk.SelectionMode.NONE)
+
+        # 1. Framework / Tipe
+        r_type = Adw.ActionRow(title="Framework / Jenis", subtitle=info.get("framework", "Node.js"))
+        r_type.add_prefix(Gtk.Image.new_from_icon_name("application-x-executable-symbolic"))
+        lb.append(r_type)
+
+        # 2. Base image
+        r_img = Adw.EntryRow(title="Base Image")
+        r_img.set_text(info.get("image", "docker.io/library/node:lts-alpine"))
+        lb.append(r_img)
+
+        # 3. Port
+        port_val = float(info.get("port", 3000))
+        r_port = Adw.SpinRow.new_with_range(1, 65535, 1)
+        r_port.set_title("Port (Host & Container)")
+        r_port.set_subtitle(f"Aplikasi dapat diakses di http://localhost:{int(port_val)}")
+        r_port.set_value(port_val)
+        r_port.set_numeric(True)
+
+        def _on_port_changed(row, _pspec=None):
+            val = int(row.get_value())
+            row.set_subtitle(f"Aplikasi dapat diakses di http://localhost:{val}")
+        r_port.connect("notify::value", _on_port_changed)
+        lb.append(r_port)
+
+        # 4. Command
+        r_cmd = Adw.EntryRow(title="Perintah (Command)")
+        r_cmd.set_text(info.get("command", ""))
+        lb.append(r_cmd)
+
+        dlg.set_extra_child(lb)
+
+        dlg.add_response("cancel", "Batal")
+        dlg.add_response("create", "Buat Konfigurasi")
+        dlg.add_response("run", "Buat & Jalankan")
+        dlg.set_response_appearance("run", Adw.ResponseAppearance.SUGGESTED)
+        dlg.set_default_response("run")
+        dlg.set_close_response("cancel")
+
+        def _resp(_d, response):
+            if response == "cancel":
+                if on_done:
+                    on_done()
+                return
+
+            cfg = dict(info)
+            cfg["image"] = r_img.get_text().strip() or info.get("image")
+            cfg["port"] = int(r_port.get_value())
+            cfg["command"] = r_cmd.get_text().strip() or info.get("command")
+
+            try:
+                pp.generate_compose_file(folder, cfg)
+            except Exception as e:
+                self._toast(f"Gagal membuat compose.yaml: {e}")
+                if on_done:
+                    on_done()
+                return
+
+            # Tambahkan ke daftar proyek
+            projects = list(self.projects)
+            projects, added, _ = pp.add_folder(projects, str(folder))
+            self.projects = projects
+            pp.save_projects(self.projects)
+            self.selected_key = str(folder.resolve())
+
+            self._render_projects(force=True)
+            self._render_header()
+            self._render_cards(force=True)
+
+            if response == "run":
+                p_entry = next((p for p in self.projects if os.path.realpath(p["path"]) == os.path.realpath(str(folder))), None)
+                if p_entry:
+                    self.run_compose(dict(p_entry), "up")
+            else:
+                self._toast(f"compose.yaml dibuat untuk “{name}”")
+
+            if on_done:
+                on_done()
+
+        dlg.connect("response", _resp)
+        if hasattr(Adw, "AlertDialog") and isinstance(dlg, Adw.AlertDialog):
+            dlg.present(self.get_root())
+        else:
+            dlg.present()
 
     def _confirm_remove(self, p):
         name = p.get("name") or p["path"]

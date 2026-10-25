@@ -70,6 +70,10 @@ def scan_for_projects(folder, max_depth=2):
     root = Path(folder).expanduser().resolve()
     if find_compose_file(root):
         return [root]
+    # Jika root itu sendiri adalah project (mis. Node.js atau Python),
+    # jangan pindai sub-folder karena root adalah proyek utama yang dipilih user.
+    if detect_project_info(root):
+        return []
     found = []
 
     def _walk(d, depth):
@@ -89,6 +93,236 @@ def scan_for_projects(folder, max_depth=2):
 
     _walk(root, 1)
     return found
+
+
+def scan_for_detectable_projects(folder, max_depth=2):
+    """
+    Cari folder yang belum punya compose tapi terdeteksi sebagai project (Node.js/Python).
+    Kembalikan list tuple (Path, info_dict).
+    """
+    root = Path(folder).expanduser().resolve()
+    if find_compose_file(root):
+        return []
+    info = detect_project_info(root)
+    if info:
+        return [(root, info)]
+
+    found = []
+
+    def _walk(d, depth):
+        if depth > max_depth:
+            return
+        try:
+            entries = sorted(d.iterdir(), key=lambda p: p.name.lower())
+        except Exception:
+            return
+        for sub in entries:
+            if not sub.is_dir() or sub.name in SKIP_DIRS or sub.name.startswith("."):
+                continue
+            if find_compose_file(sub):
+                continue
+            sub_info = detect_project_info(sub)
+            if sub_info:
+                found.append((sub, sub_info))
+            else:
+                _walk(sub, depth + 1)
+
+    _walk(root, 1)
+    return found
+
+
+def detect_project_info(folder):
+    """
+    Mendeteksi apakah folder adalah project yang didukung (Node.js, Python, dll)
+    meskipun belum memiliki file compose.
+    Return dict konfigurasi container yang disarankan, atau None.
+    """
+    folder = Path(folder).expanduser().resolve()
+    if not folder.is_dir():
+        return None
+
+    # 1. Cek Node.js (package.json)
+    pkg_file = folder / "package.json"
+    if pkg_file.is_file():
+        try:
+            pkg = json.loads(pkg_file.read_text(encoding="utf-8"))
+            if not isinstance(pkg, dict):
+                pkg = {}
+        except Exception:
+            pkg = {}
+
+        name = pkg.get("name") or folder.name
+        scripts = pkg.get("scripts", {}) if isinstance(pkg.get("scripts"), dict) else {}
+        deps = {}
+        if isinstance(pkg.get("dependencies"), dict):
+            deps.update(pkg.get("dependencies"))
+        if isinstance(pkg.get("devDependencies"), dict):
+            deps.update(pkg.get("devDependencies"))
+
+        framework = "Node.js"
+        suggested_port = 3000
+        if "vite" in deps or any("vite" in str(v).lower() for v in scripts.values()):
+            framework = "Vite"
+            suggested_port = 5173
+        elif "next" in deps:
+            framework = "Next.js"
+            suggested_port = 3000
+        elif "nuxt" in deps:
+            framework = "Nuxt"
+            suggested_port = 3000
+        elif "astro" in deps:
+            framework = "Astro"
+            suggested_port = 4321
+        elif "remix" in deps or "@remix-run/react" in deps:
+            framework = "Remix"
+            suggested_port = 3000
+        elif any(k in deps for k in ("express", "fastify", "koa", "hono")):
+            framework = "Express / API"
+            suggested_port = 3000
+
+        # Cek override PORT di file .env jika ada
+        for ef_name in (".env", ".env.local", ".env.development"):
+            env_file = folder / ef_name
+            if env_file.is_file():
+                try:
+                    for line in env_file.read_text(errors="ignore").splitlines():
+                        m = re.match(r'^\s*PORT\s*=\s*(\d+)', line)
+                        if m:
+                            suggested_port = int(m.group(1))
+                            break
+                except Exception:
+                    pass
+
+        # Cari port bebas jika suggested_port sedang terpakai
+        port = find_free_port(suggested_port)
+
+        # Cek Package Manager & Base Image
+        if (folder / "bun.lockb").is_file() or (folder / "bun.lock").is_file():
+            pm = "bun"
+            image = "docker.io/oven/bun:latest"
+            install_cmd = "bun install"
+        elif (folder / "pnpm-lock.yaml").is_file():
+            pm = "pnpm"
+            image = "docker.io/library/node:lts-alpine"
+            install_cmd = "corepack enable && pnpm install"
+        elif (folder / "yarn.lock").is_file():
+            pm = "yarn"
+            image = "docker.io/library/node:lts-alpine"
+            install_cmd = "yarn install"
+        else:
+            pm = "npm"
+            image = "docker.io/library/node:lts-alpine"
+            install_cmd = "npm install"
+
+        # Tentukan perintah eksekusi
+        if "dev" in scripts:
+            if framework in ("Vite", "Astro"):
+                run_cmd = f"{pm} run dev -- --host" if pm == "npm" else f"{pm} run dev --host"
+            else:
+                run_cmd = f"{pm} run dev"
+        elif "start" in scripts:
+            run_cmd = f"{pm} start"
+        elif "serve" in scripts:
+            run_cmd = f"{pm} run serve"
+        else:
+            entry_file = "index.js"
+            for candidate in ["index.js", "server.js", "app.js", "main.js"]:
+                if (folder / candidate).is_file():
+                    entry_file = candidate
+                    break
+            run_cmd = f"bun run {entry_file}" if pm == "bun" else f"node {entry_file}"
+
+        command = f'sh -c "{install_cmd} && {run_cmd}"'
+
+        return {
+            "type": "nodejs",
+            "display_type": "Node.js",
+            "framework": framework,
+            "name": name,
+            "image": image,
+            "port": port,
+            "command": command,
+            "working_dir": "/app",
+        }
+
+    # 2. Cek Python (requirements.txt / pyproject.toml / Pipfile / main.py / app.py / manage.py)
+    has_py = any((folder / f).is_file() for f in ["requirements.txt", "pyproject.toml", "Pipfile", "main.py", "app.py", "manage.py"])
+    if has_py:
+        name = folder.name
+        framework = "Python"
+        suggested_port = 8000
+        image = "docker.io/library/python:3.12-slim"
+        if (folder / "manage.py").is_file():
+            framework = "Django"
+            suggested_port = 8000
+            run_cmd = "python manage.py runserver 0.0.0.0:8000"
+        elif (folder / "app.py").is_file():
+            framework = "Flask / Python"
+            suggested_port = 5000
+            run_cmd = "python app.py"
+        elif (folder / "main.py").is_file():
+            framework = "FastAPI / Python"
+            suggested_port = 8000
+            run_cmd = "python main.py"
+        else:
+            run_cmd = "python main.py"
+
+        port = find_free_port(suggested_port)
+        install_cmd = "pip install -r requirements.txt" if (folder / "requirements.txt").is_file() else ""
+        command = f'sh -c "{install_cmd + " && " if install_cmd else ""}{run_cmd}"'
+
+        return {
+            "type": "python",
+            "display_type": "Python",
+            "framework": framework,
+            "name": name,
+            "image": image,
+            "port": port,
+            "command": command,
+            "working_dir": "/app",
+        }
+
+    return None
+
+
+def generate_compose_file(folder, info):
+    """
+    Membuat file compose.yaml di dalam folder project berdasarkan info yang dideteksi / diedit.
+    Return Path ke file compose.yaml yang dibuat.
+    """
+    folder = Path(folder).expanduser().resolve()
+    target = folder / "compose.yaml"
+
+    raw_name = info.get("name") or folder.name
+    name = re.sub(r"[^a-zA-Z0-9_-]", "-", raw_name.lower()).strip("-")
+    if not name:
+        name = "app"
+
+    image = info.get("image", "docker.io/library/node:lts-alpine")
+    port = int(info.get("port", 3000))
+    command = info.get("command", "sh -c 'npm install && npm start'")
+    display_type = info.get("display_type", "Aplikasi")
+
+    yaml_content = f"""# Dibuat otomatis oleh Nyanux ({display_type})
+name: {name}
+
+services:
+  app:
+    image: {image}
+    working_dir: /app
+    volumes:
+      - .:/app:z
+    ports:
+      - "{port}:{port}"
+    environment:
+      - NODE_ENV=development
+      - HOST=0.0.0.0
+      - PORT={port}
+    command: {command}
+"""
+    target.write_text(yaml_content, encoding="utf-8")
+    return target
+
 
 
 def compose_project_name(folder, compose_file=None):
@@ -267,6 +501,16 @@ def unprivileged_port_start():
         return int(Path("/proc/sys/net/ipv4/ip_unprivileged_port_start").read_text().strip())
     except Exception:
         return 1024
+
+
+def find_free_port(start_port=3000, max_port=65535):
+    low = unprivileged_port_start()
+    p = max(start_port, low)
+    while p <= max_port:
+        if port_is_free(p):
+            return p
+        p += 1
+    return start_port
 
 
 def compose_info(container):
