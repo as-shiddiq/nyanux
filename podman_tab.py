@@ -112,12 +112,15 @@ def compute_ports(container):
         rng = p.get("range") or 1
         if not h_port:
             continue
-        lbl = f"{h_port}→{c_port}" if rng == 1 else f"{h_port}-{h_port + rng - 1}→{c_port}"
+        # Yang dibuka pengguna adalah port di komputer (host); port container cukup di tooltip
+        lbl = f":{h_port}" if rng == 1 else f":{h_port}-{h_port + rng - 1}"
+        tip = (f"localhost:{h_port} → port {c_port} di dalam container" if rng == 1 else
+               f"localhost:{h_port}-{h_port + rng - 1} → port {c_port}-{c_port + rng - 1} di dalam container")
         web = None
         if proto == "tcp" and not is_db and h_port not in NON_WEB_PORTS and c_port not in NON_WEB_PORTS:
             web = f"http://localhost:{h_port}"
             urls.append(web)
-        labels.append((lbl, web))
+        labels.append((lbl, web, tip))
     return labels, urls
 
 
@@ -216,9 +219,9 @@ class ContainerCard(Gtk.Box):
         if port_labels:
             pf = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=6,
                              row_spacing=2, column_spacing=2, margin_top=2)
-            for lbl, web in port_labels[:6]:
+            for lbl, web, tip in port_labels[:6]:
                 if web and running:
-                    b = Gtk.Button(tooltip_text=f"Buka {web}")
+                    b = Gtk.Button(tooltip_text=f"Buka {web}\n{tip}")
                     b.set_child(Adw.ButtonContent(icon_name="external-link-symbolic", label=lbl))
                     b.add_css_class("flat")
                     b.add_css_class("bz-port")
@@ -226,7 +229,7 @@ class ContainerCard(Gtk.Box):
                     b.connect("clicked", lambda _b, u=web: webbrowser.open(u))
                     pf.append(b)
                 else:
-                    l = Gtk.Label(label=lbl, halign=Gtk.Align.START)
+                    l = Gtk.Label(label=lbl, halign=Gtk.Align.START, tooltip_text=tip)
                     l.add_css_class("bz-port")
                     l.add_css_class("dim-label")
                     pf.append(l)
@@ -901,12 +904,13 @@ class PodmanTab(Gtk.Box):
         name = container_name(container)
         maps = pp.port_mappings(container)
         cinfo = pp.compose_info(container)
+        how = ("Ganti port yang Anda buka di browser (localhost). "
+               "Port di dalam container tetap sama.")
         if cinfo:
-            how = (f"Container compose (service “{cinfo[1]}”): port disimpan di file override Nyanux, "
-                   f"file compose proyek tidak diubah. Service ini akan dibuat ulang.")
+            how += "\n\nService ini akan dibuat ulang; file compose proyek tidak diubah."
         else:
-            how = ("Container akan dibuat ulang dengan perintah aslinya. Data di volume/bind mount aman, "
-                   "tapi perubahan di dalam container yang tidak disimpan di volume akan hilang.")
+            how += ("\n\nContainer akan dibuat ulang. Data di volume aman, tapi perubahan di dalam "
+                    "container yang tidak disimpan di volume akan hilang.")
         heading = f"Ganti port “{name}”"
         if hasattr(Adw, "AlertDialog"):
             dlg = Adw.AlertDialog(heading=heading, body=how)
@@ -920,13 +924,13 @@ class PodmanTab(Gtk.Box):
         for m in maps:
             proto = "" if m["protocol"] == "tcp" else f"/{m['protocol']}"
             if m["range"] > 1:
-                r = Adw.ActionRow(title=f"Port container {m['container_port']}{proto}",
-                                  subtitle=f"{pp.port_spec(m)} (rentang port tidak bisa diubah di sini)")
+                r = Adw.ActionRow(title=f"Rentang port {pp.port_spec(m)}",
+                                  subtitle="Rentang port tidak bisa diubah di sini")
                 lb.append(r)
                 continue
             r = Adw.SpinRow.new_with_range(1, 65535, 1)
-            r.set_title(f"Port container {m['container_port']}{proto}")
-            r.set_subtitle(f"Port host sekarang: {m['host_port']}")
+            r.set_title("Port di komputer Anda" if len(maps) == 1 else f"Port untuk container :{m['container_port']}{proto}")
+            r.set_subtitle(f"localhost:{m['host_port']} → port {m['container_port']}{proto} di dalam container")
             r.set_value(m["host_port"])
             r.set_numeric(True)
             lb.append(r)
