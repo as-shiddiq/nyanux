@@ -11,6 +11,7 @@ Tata letak adaptif:
 
 import sys
 import json
+import webbrowser
 from pathlib import Path
 
 # Ensure directory is on sys.path
@@ -23,7 +24,9 @@ from gi.repository import Gtk, Adw, Gdk, Gio, GLib
 
 from dashboard_tab import DashboardTab
 from podman_tab import PodmanTab
-from ag_kuota_tab import AGKuotaTab
+from ag_kuota_tab import AGKuotaTab, quota_summary, _needs_relogin
+from podman_tab import compute_ports, container_name
+from tray import TrayIcon, MenuItem
 
 APP_NAME = "Nyanux"
 APP_ID = "io.github.asshiddiq.Nyanux"
@@ -37,6 +40,8 @@ THEMES = [("system", "Ikuti sistem", Adw.ColorScheme.DEFAULT),
           ("dark", "Gelap", Adw.ColorScheme.FORCE_DARK)]
 
 # Lebar (sp) di bawah ini sidebar proyek/akun dilipat, dan view switcher pindah ke bawah
+TRAY_ICON = APP_ID + "-tray"
+
 SPLIT_BREAKPOINT = 900
 NARROW_BREAKPOINT = 600
 
@@ -107,6 +112,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._build_ui()
         self._install_actions()
         self.apply_theme(self.settings.get("theme", "system"), save=False)
+        self._start_tray()
+        self.connect("close-request", self._on_close_request)
 
     # ─── UI ──────────────────────────────────────────────────────────────────
     def _build_ui(self):
@@ -131,6 +138,7 @@ class MainWindow(Adw.ApplicationWindow):
         menu.append("Muat ulang", "win.refresh")
         menu.append("Preferensi", "win.preferences")
         menu.append("Tentang Nyanux", "win.about")
+        menu.append("Keluar", "app.quit")
         menu_btn = Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu)
         menu_btn.set_tooltip_text("Menu utama")
         menu_btn.set_primary(True)
@@ -169,6 +177,90 @@ class MainWindow(Adw.ApplicationWindow):
             self.add_action(act)
             if accels:
                 self.get_application().set_accels_for_action(f"win.{name}", accels)
+
+    # ─── System tray ─────────────────────────────────────────────────────────
+    def _start_tray(self):
+        self.tray = TrayIcon("nyanux", APP_NAME, TRAY_ICON, self._build_tray_menu,
+                             lambda: self.show_window())
+        self.tray_ok = self.tray.start()
+        if self.tray_ok:
+            GLib.timeout_add_seconds(5, self._update_tray_tooltip)
+
+    def show_window(self, page=None):
+        if page:
+            self._switch_tab(page)
+        self.set_visible(True)
+        self.present()
+
+    def _on_close_request(self, _win):
+        # Tetap jalan di tray: jendela cuma disembunyikan
+        if self.tray_ok and self.settings.get("close_to_tray", True):
+            self.set_visible(False)
+            return True
+        return False
+
+    def quit_app(self):
+        if getattr(self, "tray", None):
+            self.tray.stop()
+        self.get_application().quit()
+
+    def _update_tray_tooltip(self):
+        conts = self.podman_tab.containers
+        running = sum(1 for c in conts if c.get("State") == "running")
+        lines = [f"{running} container berjalan" if self.podman_tab.podman_ok else "Podman tidak bisa dijalankan"]
+        lows = [(quota_summary(a)[1], a) for a in self.ag_kuota_tab.accounts]
+        lows = [(p, a) for p, a in lows if p is not None]
+        if lows:
+            p, a = min(lows, key=lambda x: x[0])
+            lines.append(f"Kuota terendah: {p}% ({a.get('name') or a.get('email')})")
+        self.tray.set_tooltip(APP_NAME, "\n".join(lines))
+        return True
+
+    def _build_tray_menu(self):
+        M = MenuItem
+        items = [M("Buka Nyanux", lambda: self.show_window()), M.separator()]
+
+        # Container yang berjalan langsung di menu utama; detailnya di submenu
+        pt = self.podman_tab
+        if not pt.podman_ok:
+            items.append(M.info("Podman tidak aktif"))
+        else:
+            running = [c for c in pt.containers if c.get("State") == "running"]
+            stopped = [c for c in pt.containers if c.get("State") != "running"]
+            if not running:
+                items.append(M.info("Tidak ada container berjalan"))
+            for c in running:
+                name = container_name(c)
+                _labels, urls = compute_ports(c)
+                kids = [M(f"Buka {urls[0].replace('http://', '')}", lambda u=urls[0]: webbrowser.open(u))] if urls else []
+                kids += [
+                    M("Lihat log", lambda n=name: self._open_logs(n)),
+                    M("Restart", lambda n=name: pt.run_podman_action(["podman", "restart", n], f"restart {n}")),
+                    M("Stop", lambda n=name: pt.run_podman_action(["podman", "stop", n], f"stop {n}")),
+                ]
+                items.append(M(name, children=kids))
+            if stopped:
+                items.append(M("Jalankan container", children=[
+                    M(container_name(c), lambda n=container_name(c): pt.run_podman_action(["podman", "start", n], f"start {n}"))
+                    for c in stopped]))
+        items.append(M.separator())
+
+        # Kuota: satu baris per akun di submenu (nama pendek + kuota terendah)
+        accounts = self.ag_kuota_tab.accounts
+        rows = []
+        for a in accounts:
+            _parts, low = quota_summary(a)
+            short = (a.get("email") or a.get("name") or "?").split("@")[0]
+            value = "login ulang" if _needs_relogin(a) else (f"{low}%" if low is not None else "—")
+            rows.append(M(f"{short}{' (IDE)' if a.get('is_active') else ''}  {value}",
+                          lambda: self.show_window("ag_kuota")))
+        items.append(M("Kuota AI", children=rows) if rows else M.info("Kuota AI: belum ada akun"))
+        items += [M.separator(), M("Keluar", self.quit_app)]
+        return items
+
+    def _open_logs(self, name):
+        self.show_window("podman")
+        self.podman_tab.select_container_for_logs(name)
 
     # ─── Navigasi ────────────────────────────────────────────────────────────
     def _switch_tab(self, page_name):
@@ -219,7 +311,19 @@ class MainWindow(Adw.ApplicationWindow):
         quota.add(poll)
         page.add(quota)
 
+        tray_group = Adw.PreferencesGroup(title="System tray")
+        stay = Adw.SwitchRow(title="Tetap jalan di tray saat jendela ditutup",
+                             subtitle="Klik ikon Nyanux di tray untuk melihat info dan membuka lagi",
+                             active=self.settings.get("close_to_tray", True), sensitive=self.tray_ok)
+        stay.connect("notify::active", lambda r, _p: self._set_setting("close_to_tray", r.get_active()))
+        tray_group.add(stay)
+        page.add(tray_group)
+
         dlg.present(self)
+
+    def _set_setting(self, key, value):
+        self.settings[key] = value
+        save_app_settings(self.settings)
 
     def _on_about(self, *_):
         about = Adw.AboutDialog(
@@ -241,13 +345,19 @@ class MainWindow(Adw.ApplicationWindow):
 
 class NyanuxApp(Adw.Application):
     def __init__(self):
-        super().__init__(
-            application_id=APP_ID,
-            flags=Gio.ApplicationFlags.NON_UNIQUE
-        )
+        # Satu instance saja: membuka Nyanux lagi cukup menampilkan jendela yang ada
+        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
+        self.win = None
         self.connect("activate", self._on_activate)
+        quit_act = Gio.SimpleAction.new("quit", None)
+        quit_act.connect("activate", lambda *_: self.win.quit_app() if self.win else self.quit())
+        self.add_action(quit_act)
+        self.set_accels_for_action("app.quit", ["<Control>q"])
 
     def _on_activate(self, app):
+        if self.win:
+            self.win.show_window()
+            return
         css = Gtk.CssProvider()
         css.load_from_string(CUSTOM_CSS)
         Gtk.StyleContext.add_provider_for_display(
@@ -255,7 +365,8 @@ class NyanuxApp(Adw.Application):
             css,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
-        MainWindow(app).present()
+        self.win = MainWindow(app)
+        self.win.present()
 
 
 if __name__ == "__main__":

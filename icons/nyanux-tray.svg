@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Versi ringkas untuk system tray (16–24 px): kucing di kardus, tanpa bintang/bayangan -->
+  <!-- telinga -->
+  <path d="M7 15 8.5 3.5 15 9.5z" fill="#77767b"/>
+  <path d="M25 15 23.5 3.5 17 9.5z" fill="#77767b"/>
+  <path d="M8.9 6.5 9.8 12.3 13 10z" fill="#f8a5b0"/>
+  <path d="M23.1 6.5 22.2 12.3 19 10z" fill="#f8a5b0"/>
+  <!-- kepala -->
+  <ellipse cx="16" cy="14.5" rx="10" ry="8.5" fill="#8b8a92"/>
+  <circle cx="11.8" cy="14" r="1.9" fill="#241f31"/>
+  <circle cx="20.2" cy="14" r="1.9" fill="#241f31"/>
+  <circle cx="12.4" cy="13.3" r="0.6" fill="#fff"/>
+  <circle cx="20.8" cy="13.3" r="0.6" fill="#fff"/>
+  <path d="M14.8 16.6h2.4L16 18z" fill="#e66b7c"/>
+  <!-- kardus -->
+  <rect x="3" y="18" width="26" height="12" rx="2.5" fill="#c88540"/>
+  <rect x="3" y="18" width="26" height="3" rx="1.5" fill="#e3aa62"/>
+  <rect x="14" y="18" width="4" height="12" fill="#f3d39d" opacity="0.6"/>
+  <!-- kaki -->
+  <ellipse cx="11" cy="19" rx="2.6" ry="1.8" fill="#c0bfbc"/>
+  <ellipse cx="21" cy="19" rx="2.6" ry="1.8" fill="#c0bfbc"/>
+</svg>

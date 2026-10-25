@@ -66,6 +66,19 @@ def _reset_text(model):
     return (model.get("reset") or "").replace("Reset: ", "Reset ")
 
 
+def quota_summary(account):
+    """(["Gemini 90%", "Claude dan GPT 40%"], persen terendah | None) — kuota terendah per kategori."""
+    parts, lowest = [], None
+    for cat in account.get("quotas") or []:
+        pcts = [_pct(m) for m in cat.get("models") or []]
+        if not pcts:
+            continue
+        low = min(pcts)
+        lowest = low if lowest is None else min(lowest, low)
+        parts.append(f"{cat.get('category', '').replace(' Models', '')} {low}%")
+    return parts, lowest
+
+
 def _level_class(pct):
     return "success" if pct > 50 else ("warning" if pct > 20 else "error")
 

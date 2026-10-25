@@ -124,7 +124,7 @@ class DashboardTab(Adw.Bin):
 
     # ─── Kuota ───────────────────────────────────────────────────────────────
     def _apply_kuota(self, accounts):
-        from ag_kuota_tab import _pct, _needs_relogin, quota_suffix
+        from ag_kuota_tab import quota_summary, _needs_relogin, quota_suffix
         active = next((a for a in accounts if a.get("is_active")), None)
         self.kuota_group.set_description(
             f"Dipakai di IDE: {active['email']}" if active else
@@ -132,14 +132,7 @@ class DashboardTab(Adw.Bin):
 
         rows = []
         for a in accounts:
-            parts, lowest = [], None
-            for cat in a.get("quotas") or []:
-                pcts = [_pct(m) for m in cat.get("models") or []]
-                if not pcts:
-                    continue
-                low = min(pcts)
-                lowest = low if lowest is None else min(lowest, low)
-                parts.append(f"{cat.get('category', '').replace(' Models', '')} {low}%")
+            parts, lowest = quota_summary(a)
             row = Adw.ActionRow(title=GLib.markup_escape_text(a.get("name") or a.get("email", "")),
                                 subtitle=GLib.markup_escape_text(" · ".join(parts) or a.get("email", "")))
             row.set_subtitle_lines(1)

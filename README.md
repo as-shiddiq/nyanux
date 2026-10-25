@@ -34,6 +34,16 @@ terminal yang bikin pusing, ia bisa jadi tab baru di Nyanux.
 ### Ringkasan
 - Satu halaman berisi container yang sedang berjalan dan kuota terendah tiap akun.
 
+### Ikon system tray
+- Klik ikon Nyanux di tray untuk melihat container yang berjalan (buka web, lihat log,
+  restart, stop), menjalankan container yang berhenti, dan sisa kuota tiap akun,
+  tanpa membuka jendela.
+- Tooltip menampilkan jumlah container berjalan dan kuota terendah.
+- Menutup jendela tidak mematikan aplikasi; Nyanux tetap jalan di tray. Untuk benar-benar
+  keluar, pilih **Keluar** (atau Ctrl+Q). Perilaku ini bisa dimatikan di Preferensi.
+- Didukung KDE Plasma, Cinnamon, XFCE, dll. GNOME butuh ekstensi
+  *AppIndicator and KStatusNotifierItem Support*.
+
 Tampilannya menyesuaikan ukuran jendela: di layar lebar ada sidebar; di jendela sempit sidebar
 jadi panel geser dan navigasi pindah ke bawah. Tema mengikuti sistem, atau bisa diatur sendiri.
 
@@ -90,6 +100,7 @@ IDE tetap terbaca, tapi tombol **Tambah akun** akan menampilkan petunjuk pengatu
 | `podman_projects.py` | Logika Podman tanpa GTK: proyek compose, override port |
 | `ag_kuota_tab.py` | Tampilan tab Kuota AI |
 | `ag_kuota_backend.py`, `ag_kuota_live.py` | Akun, cache, dan API kuota Google Cloud Code |
+| `tray.py` | Ikon & menu system tray (StatusNotifierItem lewat D-Bus, tanpa GTK3) |
 | `icons/` | Ikon aplikasi (berwarna & simbolik) |
 
 ## Menambah fitur

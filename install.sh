@@ -16,7 +16,7 @@ refresh_caches() {
 }
 
 if [[ "${1:-}" == "--uninstall" ]]; then
-    rm -f "$BIN" "$DESKTOP" "$ICONS/scalable/apps/$APP_ID.svg" "$ICONS/symbolic/apps/$APP_ID-symbolic.svg"
+    rm -f "$BIN" "$DESKTOP" "$ICONS/scalable/apps/$APP_ID.svg" "$ICONS/scalable/apps/$APP_ID-tray.svg" "$ICONS/symbolic/apps/$APP_ID-symbolic.svg"
     refresh_caches
     echo "Nyanux dihapus. Pengaturan masih ada di ~/.config/nyanux"
     exit 0
@@ -37,6 +37,7 @@ chmod +x "$BIN"
 
 install -m 644 "$SRC/icons/nyanux.svg" "$ICONS/scalable/apps/$APP_ID.svg"
 install -m 644 "$SRC/icons/nyanux-symbolic.svg" "$ICONS/symbolic/apps/$APP_ID-symbolic.svg"
+install -m 644 "$SRC/icons/nyanux-tray.svg" "$ICONS/scalable/apps/$APP_ID-tray.svg"
 
 cat > "$DESKTOP" <<EOF
 [Desktop Entry]
